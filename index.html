@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador BPM SICAAC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: institucional, preciso, de trabajo; como una herramienta interna del Ministerio.
+   IDEA: el expediente que avanza por los carriles de un diagrama BPMN, con su reloj de días hábiles.
+   PICTURE: el diagrama de carriles con el expediente encendido en la tarea actual.
+   COLOUR and TYPE: azul institucional 255083 dominante, amarillo F2B705 de acento, rojo B4232A para vencimientos; Work Sans.
+   LAYOUT: título breve, diagrama ancho arriba, debajo la bandeja de la tarea y el reloj del plazo, al final historial y documentos. */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0f1726);--ink:light-dark(#14213d,#e8edf6);--mut:light-dark(#5b6577,#9aa7bd);
+--blue:light-dark(#255083,#7fa6dc);--blueF:light-dark(#255083,#1d3c66);--tint:light-dark(#eef3fa,#16233a);--line:light-dark(#d5dce7,#2b3a55);
+--acc:#F2B705;--red:light-dark(#B4232A,#ff7a7f);--ok:light-dark(#1f7a4d,#5fd39a);--card:light-dark(#ffffff,#121d31)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Work Sans",system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(20px,3vw,40px) max(4vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font-size:clamp(26px,3.4vw,38px);line-height:1.08;margin:0 0 6px;text-wrap:balance}
+h2{font-size:19px;margin:0 0 10px}
+.sub{color:var(--mut);margin:0 0 4px;max-width:70ch}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;font-size:15px;min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+button.pri{background:var(--blueF);color:#fff;border-color:var(--blueF);font-weight:600}
+button.neg{border-color:var(--red);color:var(--red);font-weight:600}
+button:disabled{opacity:.45;cursor:default}
+.diagram{background:var(--tint);border-radius:14px;margin-top:16px;overflow-x:auto}
+.diagram svg{display:block;width:100%;min-width:1120px;height:auto}
+.lane-l{font-size:12px;font-weight:600;fill:var(--mut)}
+.n rect,.n circle,.n path.g{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.n text{font-size:11.5px;fill:var(--ink);text-anchor:middle}
+.n.done rect,.n.done circle,.n.done path.g{fill:light-dark(#dbe6f4,#203656);stroke:var(--blue)}
+.n.cur rect,.n.cur circle,.n.cur path.g{fill:var(--acc);stroke:#8a6a00;stroke-width:2.5}
+.n.cur text{fill:#14213d;font-weight:600}
+.n.cur{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.7}}
+@media (prefers-reduced-motion:reduce){.n.cur{animation:none}}
+.e{fill:none;stroke:var(--line);stroke-width:1.6}
+.e.done{stroke:var(--blue);stroke-width:2.4}
+.el{font-size:10.5px;fill:var(--mut)}
+.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;margin-top:18px}
+@media(max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.actor{display:inline-block;font-size:13px;font-weight:600;color:#fff;background:var(--blueF);border-radius:99px;padding:2px 12px;margin-bottom:8px}
+.ref{font-size:13px;color:var(--mut);margin-top:6px}
+label{display:block;font-size:14px;font-weight:500;margin:10px 0 4px}
+select,input[type=range]{width:100%;font:inherit;font-size:16px}
+select{min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:6px 10px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin:6px 0}
+.chk input{width:20px;height:20px;margin-top:2px;flex:none}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.dur{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--mut);margin-top:12px}
+.dur input{flex:1}
+.dur b{white-space:nowrap;color:var(--ink)}
+.clock .big{font-size:clamp(32px,4vw,44px);font-weight:700;line-height:1;color:var(--blue)}
+.meter{height:12px;border-radius:99px;background:var(--tint);overflow:hidden;margin:8px 0 4px}
+.meter i{display:block;height:100%;background:var(--blue);transition:width .3s}
+.meter.warn i{background:var(--acc)}.meter.bad i{background:var(--red)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px;margin-top:12px}
+.kv dt{color:var(--mut)}.kv dd{margin:0;font-weight:500;text-align:right;white-space:nowrap}
+.chip{display:inline-block;font-size:13px;font-weight:600;border-radius:99px;padding:2px 10px;background:var(--tint)}
+.chip.red{background:var(--red);color:#fff}.chip.ok{background:var(--ok);color:#fff}.chip.y{background:var(--acc);color:#14213d}
+.alert{border-left:4px solid var(--red);padding:8px 12px;background:light-dark(#fbeceb,#3a1a1d);border-radius:6px;font-size:14px;margin-top:10px}
+.note{border-left:4px solid var(--blue);padding:8px 12px;background:var(--tint);border-radius:6px;font-size:14px;margin-top:10px}
+ol.log{list-style:none;margin:0;padding:0;max-height:340px;overflow:auto;font-size:14px}
+ol.log li{padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px}
+ol.log time{color:var(--mut);white-space:nowrap}
+.doc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:14px}
+.doc b{display:block}
+.foot{font-size:13px;color:var(--mut);margin-top:18px}
+</style>
+</head>
+<body>
+<div class="band"><div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Simulador BPM: creación de un centro de conciliación o arbitraje</h1>
+      <p class="sub">Siga el expediente por cada tarea. El reloj cuenta días hábiles y aplica los plazos del Decreto 0042 de 2026.</p>
+    </div>
+    <div class="presets" id="presets">
+      <button data-p="ok">Camino feliz</button>
+      <button data-p="req">Falta un documento</button>
+      <button data-p="des">No subsana a tiempo</button>
+      <button data-p="rech">Entidad no facultada</button>
+    </div>
+  </div>
+  <div class="diagram" role="img" aria-label="Diagrama BPMN del trámite con el expediente en la tarea actual"><svg id="svg" viewBox="0 0 1240 486"></svg></div>
+  <div class="grid">
+    <section class="card" id="task" aria-live="polite"></section>
+    <section class="card clock" id="clock"></section>
+  </div>
+  <div class="grid">
+    <section class="card"><h2>Historial del expediente</h2><ol class="log" id="log"></ol></section>
+    <section class="card"><h2>Documentos generados</h2><div id="docs"></div></section>
+  </div>
+  <p class="foot">Simulación ilustrativa basada en el Decreto 0042 de 2026, art. 2.2.4.2.3.1 a 2.2.4.2.3.6, y la Ley 1437 de 2011 (CPACA). Los roles, los números de radicado y resolución y el formato del código del centro son de ejemplo; validar con la Dirección de Métodos Alternativos de Solución de Conflictos. Calendario con festivos de Colombia de 2026 y 2027.</p>
+</div></div>
+<script>
+{
+const LANES=["Entidad solicitante","Ventanilla (SGDEA)","Profesional DMASC","Director DMASC","SICAAC"];
+const LH=90,LY=20;
+const ly=l=>LY+l*LH+LH/2;
+const N={
+ start:{l:0,x:120,t:"s",lb:["Solicitud"]},
+ rad:{l:1,x:220,t:"t",lb:["Radicar"]},
+ leg:{l:2,x:320,t:"g",lb:["¿Facultada?"]},
+ ver:{l:2,x:430,t:"t",lb:["Verificar","requisitos"]},
+ comp:{l:2,x:540,t:"g",lb:["¿Completa?"]},
+ reqf:{l:3,x:540,t:"t",lb:["Firmar","requerimiento"]},
+ sub:{l:0,x:430,t:"t",lb:["Subsanar","(máx. 1 mes)"]},
+ eva:{l:2,x:670,t:"t",lb:["Evaluar","reglamento"]},
+ proy:{l:2,x:790,t:"t",lb:["Proyectar","resolución"]},
+ firma:{l:3,x:790,t:"t",lb:["Firmar","resolución"]},
+ rech:{l:3,x:320,t:"t",lb:["Resolución","de rechazo"]},
+ des:{l:3,x:430,t:"t",lb:["Declarar","desistimiento"]},
+ not:{l:1,x:900,t:"t",lb:["Notificar"]},
+ reg:{l:4,x:990,t:"t",lb:["Registrar y","asignar código"]},
+ endok:{l:4,x:1110,t:"e",lb:["Centro","autorizado"]},
+ recu:{l:0,x:990,t:"t",lb:["¿Reposición?"]},
+ resr:{l:3,x:1060,t:"t",lb:["Resolver","reposición"]},
+ endar:{l:3,x:1140,t:"e",lb:["Archivado"]}
+};
+const E=[
+ ["start","rad","M136 65H220V131"],["rad","leg","M262 155H320V221"],
+ ["leg","ver","M344 245H388","Sí",352,236],["leg","rech","M320 269V311","No",326,296],
+ ["ver","comp","M472 245H516"],["comp","eva","M564 245H628","Sí",584,238],["comp","reqf","M540 269V311","No",546,296],
+ ["reqf","sub","M582 335H600V65H472"],["sub","ver","M430 89V221","Subsana",436,180],["sub","des","M388 65H370V335H388","Vence",330,120],
+ ["eva","proy","M712 245H748"],["proy","firma","M780 269V311"],["firma","proy","M800 311V269","Devuelve",806,296],
+ ["firma","not","M832 335H890V179","Firma",842,328],["rech","not","M320 359V372H870V179"],["des","not","M430 359V372H870V179","Rechazo o desistimiento",560,368],
+ ["not","reg","M920 179V425H948","Autoriza",926,300],["reg","endok","M1032 425H1094"],
+ ["not","recu","M942 150H990V89","Niega",950,142],["recu","resr","M1032 65H1060V311","Sí",1066,180],["recu","endar","M990 41V28H1140V319","No",1146,180],
+ ["resr","endar","M1102 335H1124"],["resr","ver","M1040 311V205H430V221","Repone",700,200]
+];
+const HOL=new Set(["2026-12-08","2026-12-25","2027-01-01","2027-01-11","2027-03-22","2027-03-25","2027-03-26","2027-05-01","2027-05-10","2027-05-31","2027-06-07","2027-07-05","2027-07-20","2027-08-07","2027-08-16","2027-10-18","2027-11-01","2027-11-15","2027-12-08","2027-12-25"]);
+const iso=d=>d.toISOString().slice(0,10);
+const isBD=d=>{const w=d.getUTCDay();return w&&w<6&&!HOL.has(iso(d))};
+const addBD=(d,n)=>{let x=new Date(d);while(n>0){x.setUTCDate(x.getUTCDate()+1);if(isBD(x))n--}return x};
+const addCal=(d,n)=>{const x=new Date(d);x.setUTCDate(x.getUTCDate()+n);return x};
+const addMonth=d=>{const x=new Date(d);x.setUTCMonth(x.getUTCMonth()+1);return x};
+const fmt=d=>d.toLocaleDateString("es-CO",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
+const DOCS=["Certificado de existencia y representación legal","Fotos, planos y folio o contrato de la sede","Proyecto de reglamento (art. 18 Ley 2220)","Soporte de recursos financieros","Diagnóstico de conflictividad","Casos de servicio gratuito","Diseño de hardware y software"];
+const ENT={esal:"Persona jurídica sin ánimo de lucro con objeto MASC",pub:"Entidad pública territorial",cons:"Consultorio jurídico de facultad de derecho",not:"Notaría",soc:"Sociedad comercial"};
+let S;
+function reset(p){
+ S={node:"start",date:new Date(Date.UTC(2026,10,23)),bd:0,susp:false,radDate:null,bdAtReq:null,subLimit:null,log:[],docs:[],done:new Set(),edges:new Set(),neg:null,ret:0,
+  ent:"esal",tipo:"Conciliación",pdet:false,virt:true,have:new Set([0,1,2,3,4,5,6]),stop:false,recuSel:null};
+ if(p==="req")S.have.delete(4);
+ if(p==="des"){S.have.delete(3);S.preDes=true}
+ if(p==="rech")S.ent="soc";
+ S.preset=p;log("Inicio de la simulación");render();
+}
+function log(t){S.log.unshift([new Date(S.date),t])}
+function needed(){const r=[0,1,2,3,4,5,6];return r.filter(i=>!(i===0&&(S.ent==="pub"||S.ent==="not"))&&!(S.pdet&&i===4)&&!(S.pdet&&i===6&&!S.virt))}
+const missing=()=>needed().filter(i=>!S.have.has(i));
+function facultada(){if(S.ent==="soc")return false;if(S.tipo!=="Conciliación"&&(S.ent==="cons"||S.ent==="not"))return false;return true}
+function spend(n){if(!n)return;S.date=addBD(S.date,n);if(S.radDate&&!S.susp&&!S.stop)S.bd+=n}
+function go(to,lab){S.done.add(S.node);S.edges.add(S.node+">"+to);S.node=to;if(lab)log(lab);render()}
+const dur=(def,max=10)=>`<div class="dur"><span>Tiempo de la tarea</span><input type="range" id="d" min="0" max="${max}" value="${def}" aria-label="Días hábiles de la tarea"><b><span id="dv">${def}</span> días hábiles</b></div>`;
+const D=()=>+document.getElementById("d").value;
+const T={
+ start:()=>({a:"Entidad solicitante",h:"Presentar la solicitud de creación",ref:"Art. 2.2.4.2.3.1 a 2.2.4.2.3.4",b:`
+  <label for="ent">Quién solicita</label><select id="ent">${Object.entries(ENT).map(([k,v])=>`<option value="${k}"${S.ent===k?" selected":""}>${v}</option>`).join("")}</select>
+  <label for="tipo">Tipo de centro</label><select id="tipo">${["Conciliación","Arbitraje","Conciliación y arbitraje"].map(v=>`<option${S.tipo===v?" selected":""}>${v}</option>`).join("")}</select>
+  <label class="chk"><input type="checkbox" id="pdet"${S.pdet?" checked":""}> Municipio PDET</label>
+  <label class="chk"><input type="checkbox" id="virt"${S.virt?" checked":""}> Prestará servicios virtuales</label>
+  <label>Documentos que adjunta</label>${DOCS.map((d,i)=>`<label class="chk"><input type="checkbox" data-doc="${i}"${S.have.has(i)?" checked":""}> ${i+1}. ${d}</label>`).join("")}
+  <div class="row"><button class="pri" id="go">Radicar solicitud</button></div>`,on:()=>{
+  const sync=()=>{S.ent=val("ent");S.tipo=val("tipo");S.pdet=chk("pdet");S.virt=chk("virt");S.have=new Set([...document.querySelectorAll("[data-doc]")].filter(c=>c.checked).map(c=>+c.dataset.doc))};
+  document.querySelectorAll("#task select,#task input").forEach(e=>e.onchange=sync);
+  btn("go",()=>{sync();go("rad",`${ENT[S.ent]} presenta solicitud de centro de ${S.tipo.toLowerCase()}`)})}}),
+ rad:()=>({a:"Ventanilla (SGDEA)",h:"Radicar y abrir el expediente",ref:"El plazo de 15 días hábiles para decidir empieza con la radicación",b:dur(1,3)+`<div class="row"><button class="pri" id="go">Radicar</button></div>`,on:()=>btn("go",()=>{spend(D());S.radDate=new Date(S.date);S.rad="MJD-EXT26-"+(40000+Math.floor(Math.random()*9999));addDoc("Radicado "+S.rad,"Solicitud de creación de centro, "+fmt(S.date));go("leg","Radicado "+S.rad)})}),
+ leg:()=>{const f=facultada();return{a:"Profesional DMASC",h:"Verificar si la entidad está facultada",ref:"Ley 2220 de 2022, art. 16 (conciliación) y Ley 1563 de 2012, art. 50 (arbitraje)",b:`<p>${ENT[S.ent]}, centro de ${S.tipo.toLowerCase()}: <span class="chip ${f?"ok":"red"}">${f?"Facultada":"No facultada"}</span></p>`+dur(1,5)+`<div class="row"><button class="pri" id="go">${f?"Continuar":"Proyectar rechazo"}</button></div>`,on:()=>btn("go",()=>{spend(D());f?go("ver","Entidad facultada"):go("rech","Entidad no facultada: se proyecta rechazo")})}},
+ ver:()=>{const m=missing();return{a:"Profesional DMASC",h:"Verificar requisitos de la solicitud",ref:"Art. 2.2.4.2.3.3; en municipios PDET no se exige el diagnóstico ni, sin servicio virtual, el diseño tecnológico",b:
+  (m.length?`<div class="alert"><b>Faltan ${m.length} documento${m.length>1?"s":""}:</b> ${m.map(i=>DOCS[i]).join("; ")}.</div>`:`<div class="note">La solicitud está completa.</div>`)+dur(2,8)+`<div class="row"><button class="pri" id="go">Registrar resultado</button></div>`,on:()=>btn("go",()=>{spend(D());go("comp",m.length?"Solicitud incompleta":"Solicitud completa")})}},
+ comp:()=>{const m=missing();return{a:"Profesional DMASC",h:"¿La solicitud está completa?",ref:"Compuerta exclusiva",b:`<p>${m.length?"Hay documentos faltantes: debe emitirse un requerimiento dentro de los 10 días hábiles siguientes a la radicación.":"Cumple los requisitos: pasa a evaluación."}</p><div class="row"><button class="pri" id="go">${m.length?"Proyectar requerimiento":"Pasar a evaluación"}</button></div>`,on:()=>btn("go",()=>m.length?go("reqf"):go("eva"))}},
+ reqf:()=>({a:"Director DMASC",h:"Firmar el requerimiento",ref:"Art. 2.2.4.2.3.6: el requerimiento se hace dentro de los 10 días hábiles siguientes a la radicación",b:`<p>Días hábiles usados desde la radicación: <b>${S.bd}</b> de 10.</p>`+dur(1,5)+`<div class="row"><button class="pri" id="go">Firmar y enviar</button></div>`,on:()=>btn("go",()=>{spend(D());S.bdAtReq=S.bd;S.susp=true;S.subLimit=addMonth(S.date);addDoc("Requerimiento","Documentos faltantes: "+missing().map(i=>i+1).join(", ")+". Plazo para subsanar: "+fmt(S.subLimit)+(S.bdAtReq>10?". Extemporáneo: "+S.bdAtReq+" días hábiles":""));go("sub",S.bdAtReq>10?"Requerimiento enviado fuera del plazo de 10 días hábiles":"Requerimiento enviado; se suspende el plazo")})}),
+ sub:()=>({a:"Entidad solicitante",h:"Subsanar la solicitud",ref:"Plazo máximo de un mes. Si vence, se declara el desistimiento (CPACA, art. 17)",b:`<p>Plazo para subsanar: <b>${fmt(S.subLimit)}</b>.</p><div class="dur"><span>La entidad responde en</span><input type="range" id="d" min="1" max="45" value="${S.preDes?40:12}" aria-label="Días calendario"><b><span id="dv">${S.preDes?40:12}</span> días calendario</b></div><div class="row"><button class="pri" id="go">Simular respuesta</button></div>`,on:()=>btn("go",()=>{const n=D();const resp=addCal(S.date,n);if(resp>S.subLimit){S.date=addCal(S.subLimit,1);while(!isBD(S.date))S.date=addCal(S.date,1);go("des","Venció el plazo para subsanar sin respuesta")}else{S.date=resp;missing().forEach(i=>S.have.add(i));S.susp=false;S.date=addCal(S.date,1);while(!isBD(S.date))S.date=addCal(S.date,1);go("ver","La entidad subsana en "+n+" días; se reanuda el plazo")}})}),
+ eva:()=>({a:"Profesional DMASC",h:"Evaluar el reglamento y las condiciones",ref:"Art. 2.2.4.2.3.5: contenido mínimo del reglamento, literales a) a r)",b:`<p>Revise estructura, deberes del director, calidad, código de ética, listas de operadores, tarifas y servicio gratuito.</p>`+dur(3,10)+`<div class="row"><button class="pri" id="go">Concepto favorable</button></div>`,on:()=>btn("go",()=>{spend(D());go("proy","Concepto técnico favorable")})}),
+ proy:()=>({a:"Profesional DMASC",h:"Proyectar la resolución de autorización",ref:S.ret?`Devuelta ${S.ret} vez por el director`:"Borrador para firma",b:dur(1,5)+`<div class="row"><button class="pri" id="go">Enviar a firma</button></div>`,on:()=>btn("go",()=>{spend(D());go("firma","Resolución enviada a firma")})}),
+ firma:()=>({a:"Director DMASC",h:"Revisar y firmar la resolución",ref:"La decisión debe quedar dentro de los 15 días hábiles, sin contar la suspensión",b:dur(1,5)+`<div class="row"><button class="pri" id="go">Firmar</button><button id="dev">Devolver con observaciones</button></div>`,on:()=>{btn("go",()=>{spend(D());S.stop=true;S.res=resNum();addDoc("Resolución "+S.res,"Autoriza la creación del centro de "+S.tipo.toLowerCase());go("not","Resolución de autorización firmada")});btn("dev",()=>{spend(D());S.ret++;go("proy","El director devuelve la resolución")})}}),
+ rech:()=>({a:"Director DMASC",h:"Firmar la resolución de rechazo",ref:"Art. 2.2.4.2.3.6: se rechaza cuando quien solicita no es una entidad facultada",b:dur(2,5)+`<div class="row"><button class="neg" id="go">Firmar rechazo</button></div>`,on:()=>btn("go",()=>{spend(D());S.stop=true;S.neg="rechazo";addDoc("Resolución "+resNum(),"Rechaza la solicitud: entidad no facultada");go("not","Resolución de rechazo firmada")})}),
+ des:()=>({a:"Director DMASC",h:"Declarar el desistimiento",ref:"Acto motivado; la entidad puede volver a radicar",b:dur(1,5)+`<div class="row"><button class="neg" id="go">Firmar desistimiento</button></div>`,on:()=>btn("go",()=>{spend(D());S.stop=true;S.neg="desistimiento";S.susp=false;addDoc("Acto de desistimiento "+resNum(),"Archiva el expediente por no subsanar dentro del mes");go("not","Desistimiento declarado")})}),
+ not:()=>({a:"Ventanilla (SGDEA)",h:"Notificar la decisión",ref:"CPACA, art. 67 y siguientes",b:dur(1,5)+`<div class="row"><button class="pri" id="go">Notificar</button></div>`,on:()=>btn("go",()=>{spend(D());S.neg?go("recu","Decisión notificada: "+S.neg):go("reg","Autorización notificada")})}),
+ reg:()=>({a:"SICAAC",h:"Registrar el centro y asignar su código",ref:"Art. 2.2.4.2.4.4: el código lo genera el sistema de información",b:`<p>Tarea automática del sistema.</p><div class="row"><button class="pri" id="go">Ejecutar</button></div>`,on:()=>btn("go",()=>{S.code="CC-"+(5000+Math.floor(Math.random()*900));addDoc("Registro "+S.code,"Centro inscrito en el SICAAC");go("endok","Centro registrado con código "+S.code)})}),
+ recu:()=>({a:"Entidad solicitante",h:"¿Interpone recurso de reposición?",ref:S.neg==="desistimiento"?"CPACA, art. 17: procede reposición":"CPACA, art. 74: reposición y apelación; 10 días hábiles para interponerlo",b:`<div class="row"><button class="pri" id="si">Interponer reposición</button><button id="no">No interpone</button></div>`,on:()=>{btn("si",()=>{spend(5);go("resr","La entidad interpone reposición")});btn("no",()=>{spend(10);go("endar","La decisión queda en firme")})}}),
+ resr:()=>({a:"Director DMASC",h:"Resolver la reposición",ref:"Si repone, el expediente vuelve a verificación",b:dur(5,15)+`<div class="row"><button id="conf">Confirmar decisión</button><button class="pri" id="rep">Reponer</button></div>`,on:()=>{btn("conf",()=>{spend(D());addDoc("Resuelve recurso","Confirma la decisión");go("endar","Se confirma la decisión")});btn("rep",()=>{spend(D());S.stop=false;S.neg=null;if(S.ent==="soc")S.ent="esal";missing().forEach(i=>S.have.add(i));addDoc("Resuelve recurso","Repone y reabre el trámite");go("ver","Se repone la decisión: el expediente vuelve a verificación")})}}),
+ endok:()=>({a:"Fin",h:"Centro autorizado",ref:"",b:`<div class="note">El centro de ${S.tipo.toLowerCase()} queda autorizado y registrado con el código <b>${S.code}</b>.</div><div class="row"><button class="pri" id="go">Nueva simulación</button></div>`,on:()=>btn("go",()=>reset())}),
+ endar:()=>({a:"Fin",h:"Expediente archivado",ref:"",b:`<div class="note">El trámite termina sin autorización. La entidad puede presentar una nueva solicitud.</div><div class="row"><button class="pri" id="go">Nueva simulación</button></div>`,on:()=>btn("go",()=>reset())})
+};
+let rn=1200;const resNum=()=>(++rn)+" de "+S.date.getUTCFullYear();
+function addDoc(t,d){S.docs.unshift([t,d,new Date(S.date)])}
+const val=id=>document.getElementById(id).value,chk=id=>document.getElementById(id).checked;
+function btn(id,f){const b=document.getElementById(id);if(b)b.onclick=f}
+function svg(){
+ const p=[];
+ LANES.forEach((l,i)=>{p.push(`<rect x="0" y="${LY+i*LH}" width="1240" height="${LH}" fill="none" stroke="var(--line)"/><text class="lane-l" x="12" y="${LY+i*LH+LH/2+4}">${l}</text>`)});p.push('<g transform="translate(60,0)">');
+ E.forEach(([a,b,d,lab,lx,ly2])=>{const on=S.edges.has(a+">"+b);p.push(`<path class="e${on?" done":""}" d="${d}" marker-end="url(#ar${on?"d":""})"/>`);if(lab)p.push(`<text class="el" x="${lx}" y="${ly2}">${lab}</text>`)});
+ Object.entries(N).forEach(([k,n])=>{const y=ly(n.l),c=k===S.node?"cur":S.done.has(k)?"done":"";let sh;
+  if(n.t==="t")sh=`<rect x="${n.x-42}" y="${y-24}" width="84" height="48" rx="8"/>`;
+  else if(n.t==="g")sh=`<path class="g" d="M${n.x} ${y-24}L${n.x+24} ${y}L${n.x} ${y+24}L${n.x-24} ${y}Z"/>`;
+  else sh=`<circle cx="${n.x}" cy="${y}" r="16"${n.t==="e"?' style="stroke-width:4"':""}/>`;
+  const ty=n.t==="t"?y+4-(n.lb.length-1)*7:(n.t==="g"?y-30:y+32);const tx=k==="leg"?n.x-30:n.x,an=k==="leg"?' style="text-anchor:end"':"";
+  p.push(`<g class="n ${c}">${sh}${n.lb.map((t,i)=>`<text x="${tx}" y="${ty+i*14}"${an}>${t}</text>`).join("")}</g>`)});
+ p.push("</g>");document.getElementById("svg").innerHTML=`<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="var(--line)"/></marker><marker id="ard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="var(--blue)"/></marker></defs>`+p.join("");
+}
+function clock(){
+ const pct=Math.min(100,S.bd/15*100),cl=S.bd>15?"bad":S.bd>11?"warn":"";
+ const st=S.node==="endok"?'<span class="chip ok">Autorizado</span>':S.node==="endar"?'<span class="chip">Archivado</span>':S.susp?'<span class="chip y">Plazo suspendido</span>':S.stop?'<span class="chip ok">Decisión tomada</span>':S.radDate?'<span class="chip">Corriendo</span>':'<span class="chip">Sin radicar</span>';
+ const late=[];if(S.bd>15)late.push("La decisión superó los 15 días hábiles.");if(S.bdAtReq>10)late.push("El requerimiento se envió después del día hábil 10.");
+ document.getElementById("clock").innerHTML=`<h2>Plazo para decidir</h2><div class="big">${S.bd} <span style="font-size:18px;color:var(--mut);font-weight:500">de 15 días hábiles</span></div><div class="meter ${cl}"><i style="width:${pct}%"></i></div>${st}
+ <dl class="kv"><dt>Fecha simulada</dt><dd>${fmt(S.date)}</dd><dt>Radicación</dt><dd>${S.radDate?fmt(S.radDate):"—"}</dd><dt>Radicado</dt><dd>${S.rad||"—"}</dd><dt>Límite para subsanar</dt><dd>${S.subLimit?fmt(S.subLimit):"—"}</dd></dl>${late.map(t=>`<div class="alert">${t}</div>`).join("")}`;
+}
+function render(){
+ svg();{const dg=document.querySelector(".diagram"),sv=document.getElementById("svg");if(dg.scrollWidth>dg.clientWidth)dg.scrollLeft=(N[S.node].x+60)/1240*sv.clientWidth-dg.clientWidth/2}const t=T[S.node]();
+ document.getElementById("task").innerHTML=`<span class="actor">${t.a}</span><h2>${t.h}</h2>${t.b}${t.ref?`<p class="ref">${t.ref}</p>`:""}`;
+ const r=document.getElementById("d");if(r)r.oninput=()=>document.getElementById("dv").textContent=r.value;
+ t.on();clock();
+ document.getElementById("log").innerHTML=S.log.map(([d,x])=>`<li><time>${fmt(d)}</time><span>${x}</span></li>`).join("");
+ document.getElementById("docs").innerHTML=S.docs.length?S.docs.map(([t,d,f])=>`<div class="doc"><b>${t}</b>${d}<br><span class="ref">${fmt(f)}</span></div>`).join(""):'<p class="ref">Aún no hay documentos.</p>';
+}
+document.getElementById("presets").onclick=e=>{const p=e.target.dataset&&e.target.dataset.p;if(p)reset(p)};
+reset();
+}
+</script>
+</body>
+</html>
